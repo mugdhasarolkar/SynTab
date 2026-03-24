@@ -76,4 +76,4 @@ def build_vae(input_dim):
 
     vae = VAE(encoder, decoder)
 
-    return vae, encoder, decoder
+    return vae, encoder, decoder,latent_dim
