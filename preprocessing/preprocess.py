@@ -1,6 +1,6 @@
 import pandas as pd
 import joblib
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.impute import SimpleImputer
 def load_data(data_path):
@@ -12,8 +12,22 @@ def preprocess(df):
             df=df.drop(col,axis=1)
             continue
     joblib.dump(df.columns.tolist(),"outputs/saved_models/columns.pkl")
-    num_cols=df.select_dtypes(include=['int64','float64']).columns
-    cat_cols=df.select_dtypes(include=['object','category','bool']).columns
+    joblib.dump(df.dtypes.to_dict(), "outputs/saved_models/dtypes.pkl")
+    num_cols=df.select_dtypes(include=['int64','float64']).columns.tolist()
+    cat_cols=df.select_dtypes(include=['object','category','bool']).columns.tolist()
+    for col in num_cols.copy():
+        if df[col].nunique()<=10:
+            cat_cols.append(col)
+            num_cols.remove(col)
+    constraints = {}
+
+    for col in num_cols:
+        constraints[col] = {
+            "min": df[col].min(),
+            "max": df[col].max()
+        }
+
+    joblib.dump(constraints, "outputs/saved_models/constraints.pkl")
     joblib.dump(num_cols,"outputs/saved_models/num_cols.pkl")
     joblib.dump(cat_cols,"outputs/saved_models/cat_cols.pkl")
     num_features=len(num_cols)
@@ -22,7 +36,7 @@ def preprocess(df):
     if df.isnull().values.any():
         df[num_cols]=num_imputer.fit_transform(df[num_cols])
         df[cat_cols]=cat_imputer.fit_transform(df[cat_cols])
-    sc=MinMaxScaler()
+    sc=StandardScaler()
     df[num_cols]=sc.fit_transform(df[num_cols])
 
     encoder=OneHotEncoder(sparse_output=False,handle_unknown='ignore')

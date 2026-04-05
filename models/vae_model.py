@@ -5,7 +5,7 @@ from keras import layers, Model
 def build_vae(input_dim):
     h1 = min(128, max(8, input_dim // 2))
     h2 = min(64, max(4, input_dim // 4))
-    latent_dim = max(2, input_dim // 8)
+    latent_dim = min(16, max(8, input_dim // 4))
 
     # Encoder
     encoder_input = tf.keras.Input(shape=(input_dim,), name="encoder_input")
@@ -30,7 +30,7 @@ def build_vae(input_dim):
 
     x = layers.Dense(h2, activation="relu")(latent_input)
     x = layers.Dense(h1, activation="relu")(x)
-    output = layers.Dense(input_dim, activation="sigmoid")(x)
+    output = layers.Dense(input_dim)(x)
 
     decoder = Model(latent_input, output, name="decoder")
 
@@ -40,12 +40,15 @@ def build_vae(input_dim):
             super().__init__()
             self.encoder = encoder
             self.decoder = decoder
+            self.kl_weight = 0.0  
 
         def call(self, inputs):
             mu, log_var, z = self.encoder(inputs)
             return self.decoder(z)
 
         def train_step(self, data):
+            self.kl_weight = min(1.0, self.kl_weight + 0.01)
+
             with tf.GradientTape() as tape:
                 mu, log_var, z = self.encoder(data)
                 reconstruction = self.decoder(z)
@@ -63,7 +66,7 @@ def build_vae(input_dim):
                     )
                 )
 
-                total_loss = reconstruction_loss + kl_loss
+                total_loss = reconstruction_loss + self.kl_weight * kl_loss
 
             grads = tape.gradient(total_loss, self.trainable_weights)
             self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
@@ -72,8 +75,9 @@ def build_vae(input_dim):
                 "loss": total_loss,
                 "reconstruction_loss": reconstruction_loss,
                 "kl_loss": kl_loss,
+                "kl_weight": self.kl_weight,  
             }
 
     vae = VAE(encoder, decoder)
 
-    return vae, encoder, decoder,latent_dim
+    return vae, encoder, decoder, latent_dim
