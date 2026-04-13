@@ -52,6 +52,7 @@ def generate_full_dataset(n_samples):
             dtype = dtypes[col]
 
             if pd.api.types.is_integer_dtype(dtype):
+                df_generated[col] = pd.to_numeric(df_generated[col], errors='coerce')
                 df_generated[col] = df_generated[col].round().astype(int)
 
             elif pd.api.types.is_float_dtype(dtype):

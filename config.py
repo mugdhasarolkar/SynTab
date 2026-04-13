@@ -1,0 +1,1 @@
+data_path = r"E:\MyMLproject\syntab\data\raw\loan_data.csv"
