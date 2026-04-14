@@ -3,8 +3,13 @@ from preprocessing.preprocess import preprocess
 from models.vae_model import build_vae
 from models.train import train_vae
 from models.generate import generate_full_dataset
+from models.ctgan import run_ctgan
+from evaluation.evaluate import ks_evaluation
+from evaluation.plot import plot_ks_summary,plot_top_k_distributions,get_top_k_features
+import joblib
 data_path = r"E:\MyMLproject\syntab\data\raw\loan_data.csv"
 df = load_data(data_path)
+real_df=load_data(data_path)
 df_processed, scaler, encoder, num_features, num_imputer, cat_imputer = preprocess(df)
 X = df_processed.to_numpy()
 print(type(X))
@@ -16,3 +21,24 @@ print(generated_df.head())
 print(generated_df.shape)
 generated_df.to_csv("data/New/generated_data.csv", index=False)
 print(" Synthetic data saved successfully")
+num_cols=joblib.load(r"E:\MyMLproject\syntab\outputs\saved_models\num_cols.pkl")
+ks_df, avg_ks, similarity_score=ks_evaluation(real_df,generated_df,num_cols)
+print(ks_df)
+print(avg_ks)
+if avg_ks<0.2:
+    plot_ks_summary(ks_df)
+    get_top_k_features(ks_df)
+    plot_top_k_distributions(real_df,generated_df,ks_df)
+else:
+    print("VAE not good switching to CTGAN")
+    model,synth1_df=run_ctgan(real_df)
+    ks_df, avg_ks, similarity_score=ks_evaluation(real_df,synth1_df,num_cols)
+    print(ks_df)
+    print(avg_ks)
+    plot_ks_summary(ks_df)
+    get_top_k_features(ks_df)
+    plot_top_k_distributions(real_df,synth1_df,ks_df)
+
+
+
+
