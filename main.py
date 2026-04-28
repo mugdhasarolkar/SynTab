@@ -3,11 +3,11 @@ from preprocessing.preprocess import preprocess
 from models.vae_model import build_vae
 from models.train import train_vae
 from models.generate import generate_full_dataset
-from models.ctgan import run_ctgan
+from models.vtae import run_synthesizer
 from evaluation.evaluate import ks_evaluation
 from evaluation.plot import plot_ks_summary,plot_top_k_distributions,get_top_k_features
 import joblib
-data_path = r"E:\MyMLproject\syntab\data\raw\loan_data.csv"
+data_path=r"C:\Users\Mugdha\Downloads\Spotify_Music.csv"
 df = load_data(data_path)
 real_df=load_data(data_path)
 df_processed, scaler, encoder, num_features, num_imputer, cat_imputer = preprocess(df)
@@ -25,13 +25,14 @@ num_cols=joblib.load(r"E:\MyMLproject\syntab\outputs\saved_models\num_cols.pkl")
 ks_df, avg_ks, similarity_score=ks_evaluation(real_df,generated_df,num_cols)
 print(ks_df)
 print(avg_ks)
-if avg_ks<0.2:
+if avg_ks<0.4:
     plot_ks_summary(ks_df)
     get_top_k_features(ks_df)
     plot_top_k_distributions(real_df,generated_df,ks_df)
 else:
-    print("VAE not good switching to CTGAN")
-    model,synth1_df=run_ctgan(real_df)
+    print("VAE not good switching to TVAE")
+    synth1_df=run_synthesizer(real_df)
+    synth1_df.to_csv("data/New/generated_data.csv", index=False)
     ks_df, avg_ks, similarity_score=ks_evaluation(real_df,synth1_df,num_cols)
     print(ks_df)
     print(avg_ks)
