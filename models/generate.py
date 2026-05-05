@@ -5,46 +5,73 @@ import tensorflow as tf
 from keras.models import load_model
 
 
-def sampling(args):
-    mu, log_var = args
-    epsilon = tf.random.normal(shape=tf.shape(mu))
-    return mu + tf.exp(0.5 * log_var) * epsilon
-
-
 def generate_full_dataset(n_samples):
 
     decoder = load_model(
-        "outputs/saved_models/vae_decoder.h5",
-        custom_objects={"sampling": sampling},
+        "outputs/saved_models/vae_decoder.keras",
         compile=False
     )
 
     latent_dim = joblib.load("outputs/saved_models/latent_dim.pkl")
-    num_features = joblib.load("outputs/saved_models/num_features.pkl")
     scaler = joblib.load("outputs/saved_models/scaler.pkl")
-    ohe = joblib.load("outputs/saved_models/ohe.pkl")
-    columns = joblib.load("outputs/saved_models/columns.pkl")
+    label_encoders = joblib.load("outputs/saved_models/label_encoders.pkl")
+
     num_cols = joblib.load("outputs/saved_models/num_cols.pkl")
     cat_cols = joblib.load("outputs/saved_models/cat_cols.pkl")
+    columns = joblib.load("outputs/saved_models/columns.pkl")
     constraints = joblib.load("outputs/saved_models/constraints.pkl")
-    z = np.random.normal(loc=0, scale=1.0, size=(n_samples, latent_dim))
-    generated = decoder.predict(z, verbose=0)
-    num_part = generated[:, :num_features]
-    cat_part = generated[:, num_features:]
-    cat_part = np.clip(cat_part, 0, 1)
-    num_original = scaler.inverse_transform(num_part)
+
+    z = np.random.normal(0, 0.7, size=(n_samples, latent_dim))
+
+    outputs = decoder.predict(z, verbose=0)
+    num_output = outputs[0]
+    cat_outputs = outputs[1:]
+
+    num_output = np.clip(num_output, -3, 3)
+    num_original = scaler.inverse_transform(num_output)
+
     for i, col in enumerate(num_cols):
         num_original[:, i] = np.clip(
             num_original[:, i],
             constraints[col]["min"],
             constraints[col]["max"]
         )
-    cat_original = ohe.inverse_transform(cat_part)
+
     num_df = pd.DataFrame(num_original, columns=num_cols)
-    cat_df = pd.DataFrame(cat_original, columns=cat_cols)
-    final_data = pd.concat([num_df, cat_df], axis=1)
-    df_generated = pd.DataFrame(final_data, columns=columns)
+
+    cat_data = {}
+
+    for i, col in enumerate(cat_cols):
+
+        probs = cat_outputs[i]
+
+        # 🔥 temperature scaling (optional but powerful)
+        temp = 0.8
+        probs = probs ** (1 / temp)
+
+        # 🔥 normalize probabilities (safety)
+        probs = probs / probs.sum(axis=1, keepdims=True)
+
+        # 🔥 sample instead of argmax
+        indices = [
+            np.random.choice(len(p), p=p)
+            for p in probs
+        ]
+
+        # convert back to original labels
+        le = label_encoders[col]
+        values = le.inverse_transform(indices)
+
+        cat_data[col] = values
+
+    cat_df = pd.DataFrame(cat_data)
+    # Combine
+    df_generated = pd.concat([num_df, cat_df], axis=1)
+
+    df_generated = df_generated[columns]
+
     df_generated.insert(0, "id", range(1, len(df_generated) + 1))
+    # Restore dtypes
     dtypes = joblib.load("outputs/saved_models/dtypes.pkl")
 
     for col in df_generated.columns:
