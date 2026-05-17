@@ -135,7 +135,7 @@ def logo_data_uri(path: Path) -> str | None:
 def ks_delta(avg_ks):
     if avg_ks < 0.10:   return "⭐ Excellent", "normal"
     elif avg_ks < 0.20: return "🟢 Good", "normal"
-    elif avg_ks < 0.30: return "🟠 Fair", "off"
+    elif avg_ks < 0.30: return "🟠 Moderate", "off"
     elif avg_ks < 0.40: return "🟡 Acceptable", "off"
     else:               return "🔴 Poor — retrain", "inverse"
 def highlight_ks_row(avg_ks):
@@ -365,7 +365,7 @@ with right_col:
             st.markdown("##### How to read your Avg KS score")
             ks_interpretation = pd.DataFrame({
                 "Range": ["0.00 - 0.10", "0.10 - 0.20", "0.20 - 0.30", "0.30 - 0.40", "0.40+"],
-                "Rating": ["⭐ Excellent", "🟢 Good", "🟠 Fair", "🟡 Acceptable (minimum usable)", "🔴 Poor"],
+                "Rating": ["⭐ Excellent", "🟢 Good", "🟠 Moderate", "🟡 Acceptable (minimum usable)", "🔴 Poor"],
                 "Meaning": [
                     "Near perfect synthetic match",
                     "High quality, minor drift",
