@@ -8,7 +8,8 @@ from evaluation.evaluate import ks_evaluation, memorization_check, correlation_c
 from evaluation.plot import plot_ks_summary, plot_top_k_distributions, get_top_k_features
 import base64
 from pathlib import Path
-LOGO_PATH = Path(r"E:\MyMLproject\syntab\app\assets\logo.jpeg")
+LOGO_PATH = Path("app/assets/logo.jpeg")
+
 # ─── PAGE CONFIG ──────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="SynTab",
