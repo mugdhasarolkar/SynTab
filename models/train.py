@@ -1,7 +1,8 @@
 from models.vae_model import build_vae
 import joblib
 
-def train_vae(X_num,X_cat,sc,label_encoders,num_features,num_imputer,cat_imputer,num_cols,cat_cols,vocab_sizes):
+
+def train_vae(X_num, X_cat, sc, label_encoders, num_features, num_imputer, cat_imputer, num_cols, cat_cols, vocab_sizes):
 
     vae, encoder_model, decoder, latent_dim = build_vae(
         num_cols,
@@ -11,26 +12,26 @@ def train_vae(X_num,X_cat,sc,label_encoders,num_features,num_imputer,cat_imputer
 
     vae.compile(optimizer='adam')
 
-    x_train = [
-        X_num.values.astype("float32")
-    ]
+    x_train = []
+    if num_cols:
+        x_train.append(X_num.values.astype("float32"))
 
     for col in cat_cols:
-
         x_train.append(
             X_cat[col]
             .values
+            .reshape(-1, 1)
             .astype("int32")
         )
-    # Train
 
+    # Train
     vae.fit(
         x_train,
         epochs=30,
         batch_size=32
     )
-    # Save models + preprocessors
 
+    # Save models + preprocessors
     decoder.save(
         "outputs/saved_models/vae_decoder.keras"
     )

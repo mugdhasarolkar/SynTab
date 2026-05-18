@@ -24,20 +24,27 @@ def generate_full_dataset(n_samples):
     z = np.random.normal(0, 0.7, size=(n_samples, latent_dim))
 
     outputs = decoder.predict(z, verbose=0)
-    num_output = outputs[0]
-    cat_outputs = outputs[1:]
+    if not isinstance(outputs, list):
+        outputs = [outputs]
 
-    num_output = np.clip(num_output, -3, 3)
-    num_original = scaler.inverse_transform(num_output)
+    if num_cols:
+        num_output = outputs[0]
+        cat_outputs = outputs[1:]
 
-    for i, col in enumerate(num_cols):
-        num_original[:, i] = np.clip(
-            num_original[:, i],
-            constraints[col]["min"],
-            constraints[col]["max"]
-        )
+        num_output = np.clip(num_output, -3, 3)
+        num_original = scaler.inverse_transform(num_output)
 
-    num_df = pd.DataFrame(num_original, columns=num_cols)
+        for i, col in enumerate(num_cols):
+            num_original[:, i] = np.clip(
+                num_original[:, i],
+                constraints[col]["min"],
+                constraints[col]["max"]
+            )
+
+        num_df = pd.DataFrame(num_original, columns=num_cols)
+    else:
+        num_df = pd.DataFrame()
+        cat_outputs = outputs
 
     cat_data = {}
 

@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import joblib
 from sklearn.preprocessing import QuantileTransformer, LabelEncoder
@@ -25,11 +27,14 @@ def load_data(data_input):
 
 def preprocess(df):
 
-    n = len(df)
-
     for col in df.columns:
         if "id" in col.lower():
             df = df.drop(col, axis=1)
+
+    if df.shape[1] == 0:
+        raise ValueError("No columns left after removing ID columns.")
+
+    os.makedirs("outputs/saved_models", exist_ok=True)
 
     # Save metadata
     joblib.dump(df.columns.tolist(), "outputs/saved_models/columns.pkl")
@@ -59,22 +64,28 @@ def preprocess(df):
 
     num_features = len(num_cols)
 
+    if not num_cols and not cat_cols:
+        raise ValueError("No usable numeric or categorical features found.")
+
     # Imputation
     num_imputer = SimpleImputer(strategy="mean")
     cat_imputer = SimpleImputer(strategy="most_frequent")
 
     if df.isnull().values.any():
-        df[num_cols] = num_imputer.fit_transform(df[num_cols])
-        df[cat_cols] = cat_imputer.fit_transform(df[cat_cols])
+        if num_cols:
+            df[num_cols] = num_imputer.fit_transform(df[num_cols])
+        if cat_cols:
+            df[cat_cols] = cat_imputer.fit_transform(df[cat_cols])
 
     # Scaling
-    sc = QuantileTransformer(
-        output_distribution='normal',
-        n_quantiles=min(1000, len(df)),
-        random_state=42
-    )
-
-    df[num_cols] = sc.fit_transform(df[num_cols])
+    sc = None
+    if num_cols:
+        sc = QuantileTransformer(
+            output_distribution='normal',
+            n_quantiles=min(1000, len(df)),
+            random_state=42
+        )
+        df[num_cols] = sc.fit_transform(df[num_cols])
 
     # Encoding
     label_encoders = {}
@@ -87,9 +98,12 @@ def preprocess(df):
         label_encoders[col] = le
         vocab_sizes[col] = df[col].nunique()
 
+    X_num = df[num_cols] if num_cols else pd.DataFrame(index=df.index)
+    X_cat = df[cat_cols] if cat_cols else pd.DataFrame(index=df.index)
+
     return (
-        df[num_cols],
-        df[cat_cols],
+        X_num,
+        X_cat,
         sc,
         label_encoders,
         num_features,

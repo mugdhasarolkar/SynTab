@@ -5,6 +5,9 @@ import re
 
 def build_vae(num_cols, cat_cols, vocab_sizes):
 
+    if not num_cols and not cat_cols:
+        raise ValueError("At least one numeric or categorical column is required.")
+
     safe_col_map = {
         col: re.sub(r"[^A-Za-z0-9_]", "_", col)
         for col in cat_cols
@@ -27,7 +30,9 @@ def build_vae(num_cols, cat_cols, vocab_sizes):
     # =========================
     # Inputs
     # =========================
-    num_input = tf.keras.Input(shape=(len(num_cols),), name="num_input")
+    num_input = None
+    if num_cols:
+        num_input = tf.keras.Input(shape=(len(num_cols),), name="num_input")
 
     cat_inputs = []
     cat_embeddings = []
@@ -54,15 +59,28 @@ def build_vae(num_cols, cat_cols, vocab_sizes):
     # =========================
     # Fusion
     # =========================
-    num_repr = layers.Dense(h2, activation="relu")(num_input)
-    cat_repr = layers.Concatenate()(cat_embeddings)
+    if num_cols:
+        num_repr = layers.Dense(h2, activation="relu")(num_input)
+        num_repr = layers.LayerNormalization()(num_repr)
+    else:
+        num_repr = None
 
-    cat_repr = layers.Dense(h2, activation="relu")(cat_repr)
+    if cat_cols:
+        if len(cat_embeddings) == 1:
+            cat_repr = cat_embeddings[0]
+        else:
+            cat_repr = layers.Concatenate()(cat_embeddings)
+        cat_repr = layers.Dense(h2, activation="relu")(cat_repr)
+        cat_repr = layers.LayerNormalization()(cat_repr)
+    else:
+        cat_repr = None
 
-    num_repr = layers.LayerNormalization()(num_repr)
-    cat_repr = layers.LayerNormalization()(cat_repr)
-
-    encoder_input = layers.Concatenate()([num_repr, cat_repr])
+    if num_repr is not None and cat_repr is not None:
+        encoder_input = layers.Concatenate()([num_repr, cat_repr])
+    elif num_repr is not None:
+        encoder_input = num_repr
+    else:
+        encoder_input = cat_repr
 
     # =========================
     # Encoder
@@ -97,9 +115,10 @@ def build_vae(num_cols, cat_cols, vocab_sizes):
     z = layers.LayerNormalization()(z)
     z = layers.GaussianNoise(0.01)(z)
 
-    encoder = Model([num_input] + cat_inputs, [mu, log_var, z], name="encoder")
+    encoder_inputs = ([num_input] if num_cols else []) + cat_inputs
+    encoder = Model(encoder_inputs, [mu, log_var, z], name="encoder")
 
-   # =========================
+    # =========================
     # Decoder (FiLM version you had working)
     # =========================
     latent_input = layers.Input(shape=(latent_dim,), name="z_sampling")
@@ -154,9 +173,11 @@ def build_vae(num_cols, cat_cols, vocab_sizes):
     # =========================
     # Outputs (ORIGINAL SAFE)
     # =========================
-    num_output = layers.Dense(len(num_cols), name="num_output")(x)
-
-    cat_outputs = []
+    decoder_outputs = []
+    if num_cols:
+        decoder_outputs.append(
+            layers.Dense(len(num_cols), name="num_output")(x)
+        )
 
     for col in cat_cols:
         vocab_size = vocab_sizes[col]
@@ -168,9 +189,10 @@ def build_vae(num_cols, cat_cols, vocab_sizes):
             name=f"{safe_col}_out"
         )(x)
 
-        cat_outputs.append(out)
+        decoder_outputs.append(out)
 
-    decoder = Model(latent_input, [num_output] + cat_outputs, name="decoder")
+    decoder = Model(latent_input, decoder_outputs, name="decoder")
+
     # =========================
     # VAE Model (UNCHANGED)
     # =========================
@@ -196,33 +218,40 @@ def build_vae(num_cols, cat_cols, vocab_sizes):
 
                 mu, log_var, z = self.encoder(inputs)
                 reconstruction = self.decoder(z)
+                if not isinstance(reconstruction, (list, tuple)):
+                    reconstruction = [reconstruction]
 
-                num_pred = reconstruction[0]
-                cat_preds = reconstruction[1:]
+                num_loss = tf.constant(0.0, dtype=tf.float32)
+                cat_loss = tf.constant(0.0, dtype=tf.float32)
+                recon_i = 0
+                inp_i = 0
 
-                num_true = tf.cast(inputs[0], tf.float32)
-
-                cat_true = [
-                    tf.cast(tf.reshape(c, (-1,)), tf.int32)
-                    for c in inputs[1:]
-                ]
-
-                num_loss = tf.reduce_mean(
-                    tf.reduce_sum(tf.square(num_true - num_pred), axis=1)
-                )
-
-                cat_loss = 0
-                for i in range(len(cat_cols)):
-                    weight = 1.0 / tf.math.log(
-                        tf.cast(vocab_sizes[cat_cols[i]] + 1, tf.float32)
+                if num_cols:
+                    num_pred = reconstruction[recon_i]
+                    recon_i += 1
+                    num_true = tf.cast(inputs[inp_i], tf.float32)
+                    inp_i += 1
+                    num_loss = tf.reduce_mean(
+                        tf.reduce_sum(tf.square(num_true - num_pred), axis=1)
                     )
 
-                    cat_loss += weight * tf.reduce_mean(
-                        tf.keras.losses.sparse_categorical_crossentropy(
-                            cat_true[i],
-                            cat_preds[i]
+                if cat_cols:
+                    cat_preds = reconstruction[recon_i:]
+                    cat_true = [
+                        tf.cast(tf.reshape(c, (-1,)), tf.int32)
+                        for c in inputs[inp_i:]
+                    ]
+                    for i in range(len(cat_cols)):
+                        weight = 1.0 / tf.math.log(
+                            tf.cast(vocab_sizes[cat_cols[i]] + 1, tf.float32)
                         )
-                    )
+
+                        cat_loss += weight * tf.reduce_mean(
+                            tf.keras.losses.sparse_categorical_crossentropy(
+                                cat_true[i],
+                                cat_preds[i]
+                            )
+                        )
 
                 reconstruction_loss = num_loss + cat_loss
 
