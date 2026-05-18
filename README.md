@@ -29,7 +29,6 @@ syntab/
 ├── outputs/
 │   └── saved_models/        # Trained models & preprocessors (.pkl)
 ├── notebooks/               # Experiments
-├── utils/                   # Helper functions
 ├── app.py                   # Streamlit app
 ├── main.py                  # Main entry / pipeline
 ├── requirements.txt
