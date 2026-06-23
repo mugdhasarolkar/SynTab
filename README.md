@@ -37,7 +37,7 @@ syntab/
 ## Installation
 ```bash
 git clone https://github.com/mugdhasarolkar/SynTab.git
-cd synthetic-data-generator
+cd syntab
 pip install -r requirements.txt
 ```
 ## Run
